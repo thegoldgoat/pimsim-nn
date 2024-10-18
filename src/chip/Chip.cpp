@@ -4,6 +4,8 @@
 #include "Chip.h"
 #include <sstream>
 #include <fmt/core.h>
+#include <iostream>
+#include <fstream>
 
 Chip::Chip(const ChipConfig &chip_config_,const SimConfig& sim_config_)
 : global_memory("global_memory", chip_config_.global_memory_config, chip_config_.global_memory_switch_id),
@@ -111,7 +113,8 @@ double Chip::getRunRounds() {
 
 void Chip::initializeCores(const nlohmann::json &json_inst) {
     auto core_cnt = json_inst.at("config").at("core_cnt").get<int>();
-    auto array_group_map = json_inst.at("config").at("array_group_map");
+
+    bool array_group_map_present = json_inst.at("config").contains("array_group_map");
 
     for (int i=0;i<core_cnt;i++){
         // initialize array groups and connect all cores
@@ -122,8 +125,13 @@ void Chip::initializeCores(const nlohmann::json &json_inst) {
         }
         std::vector<int> core_array_group_map;
 
-        if (array_group_map.contains(core_name))
-            core_array_group_map = array_group_map.at(core_name).get<std::vector<int>>();
+        if (array_group_map_present && json_inst.at("config").at("array_group_map").contains(core_name)) {
+            core_array_group_map = json_inst.at("config").at("array_group_map").at(core_name).get<std::vector<int>>();
+        } else {
+            for (int groupId = 0; groupId < json_inst.at("config").at("xbar_array_count").get<int>(); groupId++) {
+                core_array_group_map.push_back(groupId);
+            }
+        }
         auto core_ptr = std::make_shared<Core>(
                 core_name.c_str(),chip_config.core_config,sim_config,i ,core_array_group_map,this,&clk);
         core_ptr->switchBind(&network);
@@ -134,6 +142,33 @@ void Chip::initializeCores(const nlohmann::json &json_inst) {
         core_array.push_back(core_ptr);
     }
 
+}
+
+
+void Chip::initializeCoresWithDir(const std::string& inst_dir) {
+    auto configFile = inst_dir + "/config.json";
+    auto json_config = nlohmann::json::parse(std::ifstream(configFile));
+    auto core_cnt = json_config.at("core_cnt").get<int>();
+    auto array_group_map = json_config.at("array_group_map");
+
+    for (int i=0; i < core_cnt; i++) {
+
+        auto coreFile = inst_dir + "/core_" + std::to_string(i) + ".json";
+
+        // initialize array groups and connect all cores
+        auto core_name = std::string("core") + std::to_string(i);
+
+        std::vector<int> core_array_group_map;
+        if (array_group_map.contains(core_name))
+            core_array_group_map = array_group_map.at(core_name).get<std::vector<int>>();
+        auto core_ptr = std::make_shared<Core>(
+                core_name.c_str(),chip_config.core_config,sim_config,i ,core_array_group_map,this, &clk);
+        core_ptr->switchBind(&network);
+
+        auto json_inst = nlohmann::json::parse(std::ifstream(coreFile));
+        core_ptr->readInstFromJson(json_inst);
+        core_array.push_back(core_ptr);
+    }
 }
 
 std::map<std::string, double> Chip::getChipWeightedTime() {

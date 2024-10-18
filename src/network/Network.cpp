@@ -74,6 +74,11 @@ void Network::setLatencyEnergy(const nlohmann::json & latency_energy) {
 
     std::ifstream f (full_path.string());
 
+    if (!f.is_open()) {
+        std::cerr << "Could not open latency file: " << strerror(errno) << std::endl;
+        throw -1;
+    }
+
     auto json_file = nlohmann::json::parse(f);
 
     setLatencyEnergy(json_file);

@@ -13,7 +13,7 @@
 
 class Simulator {
 public:
-    Simulator(std::string config_file_path_, std::string inst_file_path_);
+    Simulator(std::string config_file_path_, std::string inst_file_path_, bool instruction_in_single_file);
 
     void runSimulation();
 
@@ -22,15 +22,14 @@ public:
     std::string getBasicInformation();
     std::string getSimulationReport();
 
-    void setRunInGUI(bool mode);
-
 private:
     GlobalConfig global_config;
     std::string config_file_path;
     std::string inst_file_path;
-    bool is_run_in_gui = false;
-private:
+
     std::shared_ptr<Chip> chip_ptr;
+
+    bool instruction_in_single_file;
 };
 
 

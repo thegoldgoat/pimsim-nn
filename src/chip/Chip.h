@@ -25,6 +25,8 @@ public:
 
     void initializeCores(const nlohmann::json& json_inst);
 
+    void initializeCoresWithDir(const std::string& inst_dir);
+
     bool isFinish();
 
     double getRunRounds();

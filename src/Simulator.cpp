@@ -19,10 +19,8 @@
 //namespace fs = std::filesystem;
 namespace fs = ghc::filesystem;
 
-Simulator::Simulator(std::string config_file_path_, std::string inst_file_path_):
-        config_file_path(std::move(config_file_path_)), inst_file_path(std::move(inst_file_path_)){
-
-}
+Simulator::Simulator(std::string config_file_path_, std::string inst_file_path_, bool instruction_in_single_file):
+        config_file_path(std::move(config_file_path_)), inst_file_path(std::move(inst_file_path_)), instruction_in_single_file(instruction_in_single_file) {}
 
 void Simulator::runSimulation() {
 
@@ -30,35 +28,37 @@ void Simulator::runSimulation() {
 
 
     std::ifstream config_file(config_file_path);
-    zstr::ifstream inst_file(inst_file_path,std::ios::binary); // compressed
 
 
     fs::path file_path(config_file_path);
     auto parent_path = file_path.parent_path();
 
+    std::cout<<"Loading Config --- "<<std::endl;
 
-    std::cout<<"Loading Inst and Config --- "<<std::endl;
-
-    nlohmann::json json_inst = nlohmann::json::parse(inst_file);
     nlohmann::json json_config = nlohmann::json::parse(config_file);
 
-    std::cout<<"Load finish"<<std::endl;
+    std::cout<<"Load config finish"<<std::endl;
 
     global_config = json_config.get<GlobalConfig>();
 
     chip_ptr = std::make_shared<Chip>(global_config.chip_config,global_config.sim_config);
 
-    std::cout<<"Reading Instructions From File --- "<<std::endl;
-    chip_ptr->initializeCores(json_inst);
     chip_ptr->network.readLatencyEnergyFile(parent_path.string());
     std::cout<<"Read finish"<<std::endl;
 
-    int levels = is_run_in_gui?100:10;
+    std::cout<<"Reading Instructions From File --- "<<std::endl;
+
+    if (instruction_in_single_file) {
+        zstr::ifstream inst_file(inst_file_path,std::ios::binary); // compressed
+        nlohmann::json json_inst = nlohmann::json::parse(inst_file);
+        chip_ptr->initializeCores(json_inst);
+    } else {
+        chip_ptr->initializeCoresWithDir(inst_file_path);
+    }
+
+    int levels = 10;
     ProgressBar bar(SC_MS,levels,global_config.sim_config.sim_time,[this](int progress){
-        if (is_run_in_gui)
-            std::cout<<fmt::format("<{}>",progress)<<std::endl;
-        else
-            std::cout<<fmt::format("Progress --- <{}0%>",progress)<<std::endl;
+        std::cout<<fmt::format("Progress --- <{}0%>",progress)<<std::endl;
     });
 
 
@@ -95,15 +95,9 @@ std::string Simulator::getSimulationReport() {
 
 void Simulator::progressBar() {
     int progress = (sc_time_stamp().to_seconds() / (global_config.sim_config.sim_time/1000)) * 100;
-    if (is_run_in_gui)
-        std::cout<<fmt::format("<{}>",progress)<<std::endl;
-    else
-        std::cout<<fmt::format("Progress --- <{}%>",progress)<<std::endl;
+    std::cout<<fmt::format("Progress --- <{}%>",progress)<<std::endl;
 }
 
-void Simulator::setRunInGUI(bool mode) {
-    is_run_in_gui = mode;
-}
 
 std::string Simulator::getBasicInformation() {
     stringstream s;
